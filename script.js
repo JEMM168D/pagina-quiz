@@ -196,7 +196,7 @@ async function analyzeDocumentWithAI(fileDataUrl, fileType, fileName) {
         // Ajustar el input de número de preguntas
         const maxSelectable = Math.min(30, questions.length); // Límite de 30 o las disponibles
         numQuestionsInput.max = maxSelectable; // Establecer el máximo permitido
-        numQuestionsInput.value = Math.min(10, maxSelectable); // Valor por defecto (10 o menos)
+        numQuestionsInput.value = Math.min(15, maxSelectable); // Valor por defecto (10 o menos)
         const label = document.querySelector('label[for="numQuestions"]');
         if(label) label.textContent = `Número de preguntas (1-${maxSelectable}):`;
 
