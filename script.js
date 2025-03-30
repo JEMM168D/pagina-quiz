@@ -1,4 +1,4 @@
-// script.js (Completo y Actualizado - Default 15 preguntas)
+// script.js (Completo y Actualizado - Default 10 preguntas)
 
 // --- DOM Element References ---
 const uploadSection = document.getElementById('upload-section');
@@ -167,7 +167,9 @@ async function analyzeDocumentWithAI(fileDataUrl, fileType, fileName) {
              alert("La IA no pudo generar preguntas para este documento.");
              loadingMessage.style.display = 'none';
              uploadSection.style.display = 'block';
-             // ... (resetear otras secciones) ...
+             quizSection.style.display = 'none';
+             resultSection.style.display = 'none';
+             questionArea.style.display = 'none';
              documentUploadInput.value = '';
              return;
         }
@@ -182,14 +184,14 @@ async function analyzeDocumentWithAI(fileDataUrl, fileType, fileName) {
 
         numQuestionsInput.max = maxSelectable; // Establecer el ATRIBUTO 'max'
 
-        // --- CAMBIO AQUÍ: VALOR INICIAL 15 ---
-        numQuestionsInput.value = Math.min(15, maxSelectable); // <-- CAMBIADO DE 10 a 15
+        // --- CAMBIO AQUÍ: VALOR INICIAL 10 ---
+        numQuestionsInput.value = Math.min(10, maxSelectable); // <-- VUELVE A 10
 
         // Actualizar la etiqueta
         const label = document.querySelector('label[for="numQuestions"]');
         if(label) { label.textContent = `Número de preguntas (1-${maxSelectable}):`; }
 
-        console.log(`Configuración del quiz mostrada. Máximo ${maxSelectable} preguntas seleccionables. Default: ${numQuestionsInput.value}`); // Log añadido
+        console.log(`Configuración del quiz mostrada. Máximo ${maxSelectable} preguntas seleccionables. Default: ${numQuestionsInput.value}`);
 
     } catch (error) {
         console.error("--- ERROR en analyzeDocumentWithAI o fetch a generate-quiz ---");
@@ -198,7 +200,9 @@ async function analyzeDocumentWithAI(fileDataUrl, fileType, fileName) {
         // Resetear UI
         loadingMessage.style.display = 'none';
         uploadSection.style.display = 'block';
-        // ... (resetear otras secciones) ...
+        quizSection.style.display = 'none';
+        resultSection.style.display = 'none';
+        questionArea.style.display = 'none';
         documentUploadInput.value = '';
         questions = [];
     }
@@ -245,26 +249,18 @@ function handleAnswer(event) {
     const allOptions = questionArea.querySelectorAll('.option-button');
     allOptions.forEach(button => {
         button.disabled = true;
-        if (button.dataset.optionValue === correctAnswer) {
-            button.classList.add('correct');
-        } else if (button === selectedButton) {
-            button.classList.add('incorrect');
-        }
+        if (button.dataset.optionValue === correctAnswer) { button.classList.add('correct'); }
+        else if (button === selectedButton) { button.classList.add('incorrect'); }
     });
 
     if (selectedAnswer === correctAnswer) {
-        score++;
-        console.log("Respuesta CORRECTA");
+        score++; console.log("Respuesta CORRECTA");
     } else {
         console.log("Respuesta INCORRECTA.");
-        incorrectAnswers.push(currentQ);
-        console.log("Pregunta incorrecta guardada:", currentQ);
+        incorrectAnswers.push(currentQ); console.log("Pregunta incorrecta guardada:", currentQ);
     }
 
-    setTimeout(() => {
-        currentQuestionIndex++;
-        displayQuestion();
-    }, 1500);
+    setTimeout(() => { currentQuestionIndex++; displayQuestion(); }, 1500);
 }
 
 // Función para mostrar los resultados finales y obtener feedback IA
@@ -278,84 +274,65 @@ async function showResults() {
     const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
 
     // Crear elementos de resultado
-    const resultTitle = document.createElement('h2');
-    resultTitle.textContent = 'Resultados Finales';
-    const scoreText = document.createElement('p');
-    scoreText.innerHTML = `Has acertado <strong>${score}</strong> de <strong>${totalQuestions}</strong> preguntas.`;
-    const percentageText = document.createElement('p');
-    percentageText.innerHTML = `Porcentaje de aciertos: <strong>${percentage}%</strong>`;
-
-    // Placeholder para el feedback
-    const feedbackPara = document.createElement('p');
-    feedbackPara.id = 'aiFeedbackParagraph';
+    const resultTitle = document.createElement('h2'); resultTitle.textContent = 'Resultados Finales';
+    const scoreText = document.createElement('p'); scoreText.innerHTML = `Has acertado <strong>${score}</strong> de <strong>${totalQuestions}</strong> preguntas.`;
+    const percentageText = document.createElement('p'); percentageText.innerHTML = `Porcentaje de aciertos: <strong>${percentage}%</strong>`;
+    const feedbackPara = document.createElement('p'); feedbackPara.id = 'aiFeedbackParagraph';
     const feedbackEmphasis = document.createElement('em');
     feedbackEmphasis.textContent = incorrectAnswers.length > 0 ? "Generando análisis de errores con IA..." : "¡Felicidades! Ningún error.";
     feedbackPara.appendChild(feedbackEmphasis);
 
     // Crear botones
     const tryAgainButton = document.createElement('button');
-    tryAgainButton.id = 'tryAgainButton';
-    tryAgainButton.textContent = 'Hacer otro quiz (mismo documento)';
+    tryAgainButton.id = 'tryAgainButton'; tryAgainButton.textContent = 'Hacer otro quiz (mismo documento)';
     tryAgainButton.style.marginRight = '10px';
     tryAgainButton.addEventListener('click', () => {
         console.log("Botón 'Hacer otro quiz' clickeado.");
-        resultSection.style.display = 'none';
-        quizSection.style.display = 'block';
+        resultSection.style.display = 'none'; quizSection.style.display = 'block';
         const maxSelectable = Math.min(30, questions.length);
         numQuestionsInput.max = maxSelectable;
-        // --- CAMBIO AQUÍ también para resetear a 15 ---
-        numQuestionsInput.value = Math.min(15, maxSelectable); // <-- Resetear a 15
+        // --- CAMBIO AQUÍ también para resetear a 10 ---
+        numQuestionsInput.value = Math.min(10, maxSelectable); // <-- VUELVE A 10
         const label = document.querySelector('label[for="numQuestions"]');
         if(label) label.textContent = `Número de preguntas (1-${maxSelectable}):`;
     });
 
     const restartButton = document.createElement('button');
-    restartButton.id = 'restartButton';
-    restartButton.textContent = 'Analizar un documento nuevo';
+    restartButton.id = 'restartButton'; restartButton.textContent = 'Analizar un documento nuevo';
     restartButton.addEventListener('click', () => {
         console.log("Botón 'Analizar un documento nuevo' clickeado.");
         questions = []; selectedQuizQuestions = []; incorrectAnswers = [];
         documentUploadInput.value = '';
-        resultSection.style.display = 'none';
-        questionArea.style.display = 'none';
-        quizSection.style.display = 'none';
-        uploadSection.style.display = 'block';
+        resultSection.style.display = 'none'; questionArea.style.display = 'none';
+        quizSection.style.display = 'none'; uploadSection.style.display = 'block';
         numQuestionsInput.value = 10; // Resetear a 10 al empezar de cero
         const label = document.querySelector('label[for="numQuestions"]');
         if(label) label.textContent = `Número de preguntas:`; // Resetear etiqueta
     });
 
     // Añadir elementos iniciales
-    resultSection.appendChild(resultTitle);
-    resultSection.appendChild(scoreText);
-    resultSection.appendChild(percentageText);
-    resultSection.appendChild(feedbackPara);
-    resultSection.appendChild(tryAgainButton);
-    resultSection.appendChild(restartButton);
+    resultSection.appendChild(resultTitle); resultSection.appendChild(scoreText);
+    resultSection.appendChild(percentageText); resultSection.appendChild(feedbackPara);
+    resultSection.appendChild(tryAgainButton); resultSection.appendChild(restartButton);
 
     // Llamar a la función para obtener feedback IA SI HUBO ERRORES
     if (incorrectAnswers.length > 0) {
         try {
             console.log("Llamando a la función analyze-results con:", incorrectAnswers);
             const feedbackResponse = await fetch('/.netlify/functions/analyze-results', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ incorrectAnswers: incorrectAnswers }),
             });
             const feedbackData = await feedbackResponse.json();
             console.log("Respuesta de analyze-results recibida:", feedbackData);
-
             if (!feedbackResponse.ok) throw new Error(feedbackData.error || `Error ${feedbackResponse.status} obteniendo feedback`);
-
             console.log("Feedback generado por IA:", feedbackData.feedback);
             const feedbackElement = document.getElementById('aiFeedbackParagraph');
             if(feedbackElement) { feedbackElement.querySelector('em').textContent = feedbackData.feedback; }
-
         } catch (error) {
-            console.error("--- ERROR al obtener feedback de la IA ---");
-            console.error(error);
+            console.error("--- ERROR al obtener feedback de la IA ---"); console.error(error);
             const feedbackElement = document.getElementById('aiFeedbackParagraph');
-             if(feedbackElement) { feedbackElement.querySelector('em').textContent = "No se pudo generar el análisis de errores detallado."; feedbackElement.style.color = 'darkorange'; }
+            if(feedbackElement) { feedbackElement.querySelector('em').textContent = "No se pudo generar el análisis de errores detallado."; feedbackElement.style.color = 'darkorange'; }
         }
     }
 }
