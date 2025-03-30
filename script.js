@@ -318,7 +318,7 @@ async function showResults() { // Convertida a async
         quizSection.style.display = 'block';
         const maxSelectable = Math.min(30, questions.length); // Recalcular max por si acaso
         numQuestionsInput.max = maxSelectable;
-        numQuestionsInput.value = Math.min(10, maxSelectable);
+        numQuestionsInput.value = Math.min(15, maxSelectable);
         const label = document.querySelector('label[for="numQuestions"]');
         if(label) label.textContent = `Número de preguntas (1-${maxSelectable}):`;
     });
@@ -336,7 +336,7 @@ async function showResults() { // Convertida a async
         questionArea.style.display = 'none';
         quizSection.style.display = 'none';
         uploadSection.style.display = 'block';
-        numQuestionsInput.value = 10;
+        numQuestionsInput.value = 15;
         const label = document.querySelector('label[for="numQuestions"]');
          if(label) label.textContent = `Número de preguntas:`; // Resetear etiqueta
     });
