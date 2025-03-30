@@ -66,7 +66,7 @@ Genera únicamente el array JSON con las preguntas, opciones, respuesta y tema.`
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 // Ajustar tokens si es necesario, pero 2048 debería ser suficiente para 20 preguntas
-                generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
+                generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
                 safetySettings: [ /* ... tus safety settings ... */ ]
             }),
         });
