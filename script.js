@@ -273,11 +273,14 @@ function handleAnswer(event) {
 // Función para mostrar los resultados finales (Sin cambios en logs)
 function showResults() {
     console.log("Mostrando resultados finales.");
-    questionArea.style.display = 'none';
-    resultSection.innerHTML = '';
-    resultSection.style.display = 'block';
+    questionArea.style.display = 'none'; // Ocultamos el área de preguntas
+    resultSection.innerHTML = ''; // Limpiamos resultados anteriores para añadir los nuevos
+    resultSection.style.display = 'block'; // Mostramos la sección de resultados (que es una card)
+
     const totalQuestions = selectedQuizQuestions.length;
     const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+
+    // Mensaje de feedback simple basado en porcentaje
     let feedbackMessage = "";
      if (totalQuestions > 0) {
         if (percentage === 100) feedbackMessage = "¡Felicidades! ¡100%! Dominas el contenido.";
@@ -287,35 +290,65 @@ function showResults() {
      } else {
          feedbackMessage = "No se realizaron preguntas.";
      }
+
+    // --- Crear contenido de resultados ---
     const resultTitle = document.createElement('h2');
     resultTitle.textContent = 'Resultados Finales';
+
     const scoreText = document.createElement('p');
     scoreText.innerHTML = `Has acertado <strong>${score}</strong> de <strong>${totalQuestions}</strong> preguntas.`;
+
     const percentageText = document.createElement('p');
     percentageText.innerHTML = `Porcentaje de aciertos: <strong>${percentage}%</strong>`;
+
     const feedbackPara = document.createElement('p');
     const feedbackEmphasis = document.createElement('em');
     feedbackEmphasis.textContent = feedbackMessage;
     feedbackPara.appendChild(feedbackEmphasis);
+
+    // --- Crear los botones ---
+
+    // 1. Botón "Hacer otro quiz (mismo documento)"
+    const tryAgainButton = document.createElement('button');
+    tryAgainButton.id = 'tryAgainButton'; // Nuevo ID
+    tryAgainButton.textContent = 'Hacer otro quiz (mismo documento)';
+    tryAgainButton.style.marginRight = '10px'; // Añadir un poco de espacio entre botones
+
+    tryAgainButton.addEventListener('click', () => {
+        console.log("Botón 'Hacer otro quiz' clickeado.");
+        // Ocultar resultados y mostrar la configuración del quiz de nuevo
+        resultSection.style.display = 'none';
+        quizSection.style.display = 'block';
+        // Resetear el número de preguntas por defecto (opcional, pero puede ser útil)
+        numQuestionsInput.max = questions.length; // Asegurar que el max está bien
+        numQuestionsInput.value = Math.min(10, questions.length); // Poner 10 o el max disponible
+        // No reseteamos el array 'questions', ¡esa es la clave!
+    });
+
+    // 2. Botón "Analizar un documento nuevo" (el que ya existía)
     const restartButton = document.createElement('button');
     restartButton.id = 'restartButton';
-    restartButton.textContent = 'Analizar otro documento';
+    restartButton.textContent = 'Analizar un documento nuevo'; // Texto más claro
+
     restartButton.addEventListener('click', () => {
-        console.log("Botón 'Analizar otro documento' clickeado.");
-        questions = [];
+        console.log("Botón 'Analizar un documento nuevo' clickeado.");
+        // Resetear TODO, incluyendo las preguntas generadas
+        questions = []; // <-- Borra las preguntas anteriores
         selectedQuizQuestions = [];
-        documentUploadInput.value = '';
+        documentUploadInput.value = ''; // Limpia el input de archivo
         resultSection.style.display = 'none';
         questionArea.style.display = 'none';
-        quizSection.style.display = 'none';
-        uploadSection.style.display = 'block';
-        numQuestionsInput.value = 10;
+        quizSection.style.display = 'none'; // Ocultar config quiz
+        uploadSection.style.display = 'block'; // Mostramos la sección de subida inicial
+        numQuestionsInput.value = 10; // Resetea el valor por defecto
     });
+
+    // --- Añadir todos los elementos a la sección de resultados ---
     resultSection.appendChild(resultTitle);
     resultSection.appendChild(scoreText);
     resultSection.appendChild(percentageText);
     resultSection.appendChild(feedbackPara);
-    resultSection.appendChild(restartButton);
+    resultSection.appendChild(tryAgainButton); // Añadir el nuevo botón
+    resultSection.appendChild(restartButton); // Añadir el botón de reinicio completo
 }
-
 // --- Fin del código ---
