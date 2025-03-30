@@ -33,45 +33,67 @@ uploadButton.addEventListener('click', () => {
     console.log("Botón 'Analizar Documento' clickeado.");
     const files = documentUploadInput.files;
 
-    if (files.length === 0) {
-        alert('Por favor, selecciona un archivo .txt primero.');
+// Dentro de uploadButton.addEventListener('click', ...)
+
+    const file = files[0];
+    console.log(`Archivo seleccionado: ${file.name}, Tipo: ${file.type}, Tamaño: ${file.size}`);
+
+    // Validar tamaño (opcional pero recomendado, ej: 10MB)
+    const maxSizeInBytes = 10 * 1024 * 1024; // 10 MB
+    if (file.size > maxSizeInBytes) {
+        alert(`El archivo es demasiado grande (${(file.size / 1024 / 1024).toFixed(2)} MB). El límite es 10 MB.`);
+        documentUploadInput.value = ''; // Limpiar input
         return;
     }
 
-    const file = files[0];
-    console.log(`Archivo seleccionado: ${file.name}, Tipo: ${file.type}`);
+    // Tipos de archivo permitidos (puedes ajustar)
+    const allowedTypes = [
+        'text/plain',
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
+    ];
 
-    // Solo aceptamos .txt por ahora, ya que el frontend lee texto plano
-    if (file.type === 'text/plain') {
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-            fileContent = e.target.result;
-            console.log("Archivo .txt leído.");
-            uploadSection.style.display = 'none';
-            loadingMessage.style.display = 'block'; // Mostrar carga INMEDIATAMENTE
-            quizSection.style.display = 'none';
-            resultSection.style.display = 'none';
-            questionArea.style.display = 'none';
-
-            // --- LLAMADA REAL a la Función Serverless ---
-            analyzeDocumentWithAI(fileContent);
-        };
-
-        reader.onerror = (e) => {
-            console.error("Error leyendo el archivo:", e);
-            alert('Error al leer el archivo.');
-            loadingMessage.style.display = 'none'; // Ocultar carga si falla la lectura
-            uploadSection.style.display = 'block'; // Mostrar subida de nuevo
-        };
-
-        reader.readAsText(file);
-
-    } else {
-        alert(`Por favor, sube un archivo de texto plano (.txt).`);
-        documentUploadInput.value = ''; // Limpia el input
+    // Validar tipo de archivo de forma más robusta que 'accept'
+    // Nota: El navegador podría no reportar siempre el tipo MIME correcto para .docx,
+    // por eso la función también revisa la extensión .docx
+    if (!allowedTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.docx')) {
+         alert(`Tipo de archivo no permitido (${file.type || 'desconocido'}). Sube .txt, .pdf o .docx.`);
+         documentUploadInput.value = ''; // Limpiar input
+         return;
     }
-});
+
+
+    const reader = new FileReader();
+
+    // Qué hacer cuando el archivo se lea como Data URL
+    reader.onload = (e) => {
+        const fileDataUrl = e.target.result; // Esto es el string Base64 con prefijo 'data:...'
+        console.log("Archivo leído como Data URL.");
+
+        // Ocultar subida, mostrar carga
+        uploadSection.style.display = 'none';
+        loadingMessage.style.display = 'block';
+        quizSection.style.display = 'none';
+        resultSection.style.display = 'none';
+        questionArea.style.display = 'none';
+
+        // --- LLAMADA a la Función Serverless con los nuevos datos ---
+        analyzeDocumentWithAI(fileDataUrl, file.type, file.name); // Pasar Data URL, tipo y nombre
+    };
+
+    // Qué hacer si hay error leyendo el archivo
+    reader.onerror = (e) => {
+        console.error("Error leyendo el archivo:", e);
+        alert('Error al leer el archivo localmente.');
+        loadingMessage.style.display = 'none';
+        uploadSection.style.display = 'block';
+        documentUploadInput.value = ''; // Limpiar input
+    };
+
+    // Empezar a leer el archivo como Data URL (Base64)
+    reader.readAsDataURL(file);
+
+// Fin del bloque a reemplazar dentro del listener del botón
 
 // 2. Event Listener para el botón "Empezar Quiz"
 startButton.addEventListener('click', () => {
@@ -106,9 +128,11 @@ startButton.addEventListener('click', () => {
 // --- Helper Functions ---
 
 // Función para llamar a la Netlify Function
-async function analyzeDocumentWithAI(textContent) {
-    console.log("Iniciando llamada a la función serverless para analizar el documento...");
-    loadingMessage.style.display = 'block'; // Asegurarse que se muestra el mensaje de carga
+// Modificar la firma y el cuerpo de la función analyzeDocumentWithAI
+
+async function analyzeDocumentWithAI(fileDataUrl, fileType, fileName) { // <-- Nuevos argumentos
+    console.log(`Iniciando llamada a la función serverless para ${fileName}...`);
+    loadingMessage.style.display = 'block';
 
     const functionUrl = '/.netlify/functions/generate-quiz';
 
@@ -116,35 +140,41 @@ async function analyzeDocumentWithAI(textContent) {
         const response = await fetch(functionUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ documentText: textContent }),
+            // Enviar los datos del archivo en el cuerpo JSON
+            body: JSON.stringify({
+                fileDataUrl: fileDataUrl,
+                fileType: fileType,
+                fileName: fileName
+            }),
         });
 
-        const data = await response.json(); // Parseamos siempre para leer errores o éxito
+        const data = await response.json();
 
         if (!response.ok) {
             console.error(`Error desde la función serverless (${response.status}):`, data.error || 'Error desconocido');
+            // Mostrar error más específico si viene de la función (ej. "No se pudo extraer texto...")
             throw new Error(data.error || `Error del servidor: ${response.status}`);
         }
 
         console.log("Preguntas recibidas desde la función serverless:", data.questions);
 
         if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
-            questions = data.questions; // Guardamos las preguntas reales
+             questions = data.questions; // Guardamos las preguntas reales
 
-            loadingMessage.style.display = 'none';
-            quizSection.style.display = 'block';
-            questionArea.style.display = 'none';
-            resultSection.style.display = 'none';
+             // ... (resto del código para ocultar carga, mostrar config, etc. se mantiene igual) ...
+             loadingMessage.style.display = 'none';
+             quizSection.style.display = 'block';
+             questionArea.style.display = 'none';
+             resultSection.style.display = 'none';
 
-            numQuestionsInput.max = questions.length;
-             if (parseInt(numQuestionsInput.value) > questions.length || parseInt(numQuestionsInput.value) <= 0) {
-                numQuestionsInput.value = Math.min(10, questions.length); // Default 10 o máx disponible
-             }
-             if (questions.length < parseInt(numQuestionsInput.value)){
-                 numQuestionsInput.value = questions.length;
-             }
-
-            console.log(`Configuración del quiz mostrada. ${questions.length} preguntas disponibles.`);
+             numQuestionsInput.max = questions.length;
+              if (parseInt(numQuestionsInput.value) > questions.length || parseInt(numQuestionsInput.value) <= 0) {
+                 numQuestionsInput.value = Math.min(10, questions.length);
+              }
+              if (questions.length < parseInt(numQuestionsInput.value)){
+                  numQuestionsInput.value = questions.length;
+              }
+             console.log(`Configuración del quiz mostrada. ${questions.length} preguntas disponibles.`);
 
         } else {
              throw new Error("La respuesta del servidor no contenía un array de preguntas válido.");
@@ -152,6 +182,7 @@ async function analyzeDocumentWithAI(textContent) {
 
     } catch (error) {
         console.error("Error al llamar/procesar función serverless:", error);
+        // Mostrar el mensaje de error recibido
         alert(`Hubo un problema al generar el cuestionario: ${error.message}\nInténtalo de nuevo o revisa el documento.`);
         // Resetear UI
         loadingMessage.style.display = 'none';
@@ -160,11 +191,10 @@ async function analyzeDocumentWithAI(textContent) {
         resultSection.style.display = 'none';
         questionArea.style.display = 'none';
         documentUploadInput.value = '';
-        fileContent = null;
+        fileContent = null; // Ya no usamos fileContent, pero lo reseteamos por si acaso
         questions = [];
     }
 }
-
 
 // Función para mostrar la pregunta actual
 function displayQuestion() {
