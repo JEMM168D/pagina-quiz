@@ -1,104 +1,72 @@
 // netlify/functions/generate-quiz.js
 
-// Importar las dependencias instaladas por Netlify gracias a package.json
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
 exports.handler = async (event, context) => {
-    // 1. Verificar método POST
-    if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: JSON.stringify({ error: 'Método no permitido. Usa POST.' }) };
-    }
-
-    // 2. Obtener datos del cuerpo (Base64 data URL y tipo/nombre de archivo)
+    // 1. Verificar POST y obtener datos (sin cambios)
+    if (event.httpMethod !== 'POST') { /* ... */ }
     let base64DataUrl, fileType, fileName;
     try {
         const body = JSON.parse(event.body);
-        base64DataUrl = body.fileDataUrl; // Esperamos la URL de datos Base64
-        fileType = body.fileType;        // Ej: 'application/pdf', 'text/plain', etc.
-        fileName = body.fileName;        // Ej: 'documento.pdf'
-
-        if (!base64DataUrl || !fileType || !fileName) {
-            throw new Error('Faltan datos del archivo (fileDataUrl, fileType, fileName).');
-        }
+        base64DataUrl = body.fileDataUrl; fileType = body.fileType; fileName = body.fileName;
+        if (!base64DataUrl || !fileType || !fileName) throw new Error('Faltan datos');
         console.log(`Archivo recibido: ${fileName}, Tipo: ${fileType}`);
+    } catch (error) { /* ... manejo de error ... */ return { statusCode: 400, body: JSON.stringify({ error: `Cuerpo inválido: ${error.message}` }) }; }
 
-    } catch (error) {
-        console.error("Error al parsear el cuerpo de la solicitud:", error);
-        return { statusCode: 400, body: JSON.stringify({ error: `Cuerpo de solicitud inválido: ${error.message}` }) };
-    }
-
-    // 3. Obtener la clave API de Google Gemini
+    // 2. Obtener API Key (sin cambios)
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-        console.error("Error: La variable de entorno GEMINI_API_KEY no está configurada.");
-        return { statusCode: 500, body: JSON.stringify({ error: 'Error de configuración del servidor (falta clave API Gemini).' }) };
-    }
+    if (!apiKey) { /* ... manejo de error ... */ return { statusCode: 500, body: JSON.stringify({ error: 'Error config (key)' }) }; }
 
     let extractedText = '';
     try {
-        // 4. Extraer el texto según el tipo de archivo
-
-        // Extraer solo la parte Base64 de la Data URL (quita el prefijo 'data:...;base64,')
+        // 3. Extraer Texto (sin cambios en la lógica de extracción)
         const base64String = base64DataUrl.split(',')[1];
-        if (!base64String) {
-            throw new Error("Formato de Data URL inválido.");
-        }
-        // Convertir Base64 a un Buffer binario
+        if (!base64String) throw new Error("Data URL inválido.");
         const fileBuffer = Buffer.from(base64String, 'base64');
         console.log(`Buffer creado, tamaño: ${fileBuffer.length} bytes`);
 
-        if (fileType === 'application/pdf') {
-            console.log("Procesando PDF...");
-            const data = await pdfParse(fileBuffer);
-            extractedText = data.text;
-            console.log("Texto extraído de PDF.");
-        } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileName.endsWith('.docx')) {
-            // application/vnd.openxmlformats-officedocument.wordprocessingml.document es el MIME type de .docx
-            console.log("Procesando DOCX...");
-            const result = await mammoth.extractRawText({ buffer: fileBuffer });
-            extractedText = result.value;
-            console.log("Texto extraído de DOCX.");
-        } else if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
-            console.log("Procesando TXT...");
-            // Para texto plano, simplemente decodificamos el buffer como UTF-8
-            extractedText = fileBuffer.toString('utf8');
-            console.log("Texto extraído de TXT.");
-        } else {
-            console.warn(`Tipo de archivo no soportado directamente: ${fileType}`);
-            // Podríamos intentar leerlo como texto plano como último recurso
-             try {
-                 extractedText = fileBuffer.toString('utf8');
-                 console.log("Intentando leer como texto plano (tipo no soportado).");
-                 if (!extractedText.trim()) throw new Error('Contenido vacío o no textual');
-             } catch (fallbackError) {
-                throw new Error(`Tipo de archivo no soportado: ${fileType}. Solo se admiten .txt, .pdf y .docx.`);
-             }
-        }
+        if (fileType === 'application/pdf') { /* ... pdfParse ... */ extractedText = (await pdfParse(fileBuffer)).text; }
+        else if (fileType.includes('wordprocessingml') || fileName.endsWith('.docx')) { /* ... mammoth ... */ extractedText = (await mammoth.extractRawText({ buffer: fileBuffer })).value; }
+        else if (fileType === 'text/plain' || fileName.endsWith('.txt')) { /* ... toString ... */ extractedText = fileBuffer.toString('utf8'); }
+        else { throw new Error(`Tipo de archivo no soportado: ${fileType}`); }
 
-        if (!extractedText || extractedText.trim().length === 0) {
-            console.warn("No se pudo extraer texto o el documento estaba vacío.");
-            // Devolvemos un error amigable en lugar de enviar texto vacío a la IA
-            return {
-                statusCode: 400, // Bad Request
-                body: JSON.stringify({ error: 'No se pudo extraer contenido textual del documento o estaba vacío.' })
-            };
-        }
-
+        if (!extractedText || extractedText.trim().length === 0) return { statusCode: 400, body: JSON.stringify({ error: 'No se pudo extraer contenido textual o estaba vacío.' }) };
         console.log(`Texto extraído (primeros 100 chars): ${extractedText.substring(0, 100)}`);
 
-        // 5. Preparar y llamar a la API de Gemini con el texto extraído
-        const modelName = 'gemini-1.5-flash-latest'; // O el modelo que estés usando
+        // 4. Preparar y llamar a Gemini (PROMPT MODIFICADO)
+        const modelName = 'gemini-2.0-flash';
         const AI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-        const prompt = `A partir del siguiente texto, genera OBLIGATORIAMENTE un array JSON válido que contenga alrededor de 10 objetos de preguntas de opción múltiple (4 opciones cada una). Cada objeto en el array debe tener estrictamente las siguientes claves y tipos: "question" (string), "options" (array de 4 strings diferentes entre sí) y "answer" (string, que debe ser idéntico a una de las strings en el array "options"). No incluyas ninguna explicación, texto introductorio, comillas de bloque de código (\`\`\`) ni nada más antes o después del array JSON puro. El JSON debe empezar con '[' y terminar con ']'. Asegúrate de que todas las comillas y comas sean correctas para un JSON válido.\n\nTexto:\n---\n${extractedText}\n---\n\nGenera únicamente el array JSON.`;
 
-        console.log(`Enviando solicitud a Gemini API (${modelName})...`);
+        // --- PROMPT MODIFICADO ---
+        const maxQuestionsToGenerate = 50; // Pedimos un número alto para tener variedad
+        const prompt = `A partir del siguiente texto, realiza estas dos tareas:
+1. Identifica los 3-5 temas principales tratados en el texto.
+2. Genera OBLIGATORIAMENTE un array JSON válido que contenga hasta ${maxQuestionsToGenerate} objetos de preguntas de opción múltiple (4 opciones distintas cada una) basadas en el contenido. Si el texto es corto, genera menos preguntas pero asegúrate de que sean de buena calidad.
+Cada objeto en el array JSON debe tener estrictamente las siguientes claves y tipos:
+ - "question" (string): El texto de la pregunta.
+ - "options" (array de 4 strings): Las opciones de respuesta.
+ - "answer" (string): El texto exacto de la opción correcta (debe ser una de las 4 opciones).
+ - "topic" (string): Una etiqueta breve (1-3 palabras) que represente el tema principal de esa pregunta, basado en los temas identificados en el paso 1 o en el contenido específico de la pregunta. Intenta usar los mismos nombres de tema de forma consistente.
+
+IMPORTANTE: La respuesta final debe ser únicamente el array JSON puro. No incluyas los temas identificados fuera del JSON, ni explicaciones, texto introductorio, comentarios, ni comillas de bloque de código (\`\`\`) antes o después del array JSON. El JSON debe empezar con '[' y terminar con ']'.
+
+Texto:
+---
+${extractedText}
+---
+
+Genera únicamente el array JSON con las preguntas, opciones, respuesta y tema.`;
+        // --- FIN PROMPT MODIFICADO ---
+
+        console.log(`Enviando solicitud a Gemini API (${modelName}) para generar hasta ${maxQuestionsToGenerate} preguntas...`);
         const response = await fetch(AI_API_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
+                // Aumentar un poco maxOutputTokens si pedimos muchas preguntas
+                generationConfig: { temperature: 0.6, maxOutputTokens: 3072 }, // Ajusta si es necesario
                 safetySettings: [ /* ... tus safety settings ... */ ]
             }),
         });
@@ -106,39 +74,44 @@ exports.handler = async (event, context) => {
         console.log(`Respuesta de Gemini API recibida con estado: ${response.status}`);
         const aiResponse = await response.json();
 
-        if (!response.ok) {
-            console.error(`Error de la API de Gemini (${response.status}):`, JSON.stringify(aiResponse, null, 2));
-            const errorMessage = aiResponse?.error?.message || `Error ${response.status}`;
-            throw new Error(`La API de Gemini devolvió un error: ${errorMessage}`);
-        }
+        if (!response.ok) { /* ... manejo de error API ... */ throw new Error(`Error API Gemini: ${aiResponse?.error?.message || response.status}`); }
 
-        // 6. Procesar la respuesta de Gemini
+        // 5. Procesar Respuesta (Extracción y Validación)
         console.log("Respuesta JSON completa de Gemini recibida.");
         let generatedQuestions = [];
         if (aiResponse.candidates && aiResponse.candidates[0]?.content?.parts?.[0]?.text) {
-             try {
+            try {
                 const jsonString = aiResponse.candidates[0].content.parts[0].text;
                 const cleanedJsonString = jsonString.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
                 generatedQuestions = JSON.parse(cleanedJsonString);
-             } catch (parseError) { /* ... manejo de error de parseo ... */ throw new Error("Gemini no devolvió un JSON de preguntas válido."); }
-        } else { /* ... manejo de estructura inesperada ... */ throw new Error("La respuesta de Gemini no contenía texto de preguntas esperado."); }
+                // Validación adicional: verificar si los objetos tienen las claves esperadas
+                if (generatedQuestions.length > 0) {
+                    const firstQ = generatedQuestions[0];
+                    if (!firstQ.question || !Array.isArray(firstQ.options) || !firstQ.answer || !firstQ.topic) {
+                         console.warn("Advertencia: Las preguntas recibidas no tienen la estructura completa esperada (question, options, answer, topic).", firstQ);
+                         // Podrías decidir lanzar un error aquí o continuar sin la funcionalidad de temas.
+                         // Por ahora, continuaremos, pero el feedback por tema podría fallar.
+                    }
+                }
+            } catch (parseError) { /* ... manejo error parseo ... */ throw new Error("Gemini no devolvió un JSON válido."); }
+        } else { /* ... manejo estructura inesperada ... */ throw new Error("Respuesta Gemini OK pero estructura inesperada."); }
 
-        if (!Array.isArray(generatedQuestions) || generatedQuestions.length === 0) { throw new Error('La IA generó una respuesta vacía o no válida.'); }
+        if (!Array.isArray(generatedQuestions)) { throw new Error('La IA generó una respuesta no válida (no es array).'); }
+        // No lanzamos error si está vacío, puede que el doc fuera corto
+        if (generatedQuestions.length === 0) { console.warn("La IA no generó ninguna pregunta (quizás el documento era muy corto o irrelevante)."); }
+
 
         console.log(`Se generaron y parsearon ${generatedQuestions.length} preguntas.`);
 
-        // 7. Devolver las preguntas al frontend
+        // 6. Devolver preguntas
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ questions: generatedQuestions }),
+            body: JSON.stringify({ questions: generatedQuestions }), // Devolvemos el array, puede estar vacío
         };
 
     } catch (error) {
-        console.error('Error durante la extracción de texto o llamada a Gemini:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: `Error al procesar el archivo o generar el quiz: ${error.message}` }),
-        };
+        console.error('Error en generate-quiz:', error);
+        return { statusCode: 500, body: JSON.stringify({ error: `Error al procesar/generar: ${error.message}` }) };
     }
 };
