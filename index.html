@@ -20,7 +20,9 @@
         <label for="documentUpload">Selecciona un archivo (.txt):</label>
         <div class="file-input-wrapper">
           <!-- Limitamos solo a .txt ya que la función serverless actual solo lee texto plano -->
-          <input type="file" id="documentUpload" name="documentUpload" accept=".txt">
+         <!-- Dentro de <div id="upload-section"> -->
+        <input type="file" id="documentUpload" name="documentUpload" 
+            accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           <button id="uploadButton">Analizar Documento</button>
         </div>
     </div>
