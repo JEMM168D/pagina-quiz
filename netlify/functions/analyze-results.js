@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
 
     try {
         // 3. Preparar prompt para Gemini (USANDO TEMAS)
-        const modelName = 'gemini-1.5-flash-8b-latest';
+        const modelName = 'gemini-2.0-flash';
         const AI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         // Resumen CON temas
