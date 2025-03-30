@@ -1,17 +1,15 @@
-// package.json
 {
   "name": "proyecto-quiz-ia",
   "version": "1.0.0",
   "description": "Generador de Quiz con IA desde documentos",
-  "main": "index.html", // No relevante para Netlify Functions, pero buena práctica
+  "main": "index.html",
   "dependencies": {
-    "mammoth": "^1.7.0",      // Para extraer texto de .docx
-    "pdf-parse": "^1.1.1"     // Para extraer texto de .pdf
-    // Añade aquí otras dependencias si fueran necesarias en el futuro
+    "mammoth": "^1.7.0",
+    "pdf-parse": "^1.1.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "", // Puedes poner tu nombre o dejarlo vacío
-  "license": "ISC" // O la licencia que prefieras
+  "author": "",
+  "license": "ISC"
 }
