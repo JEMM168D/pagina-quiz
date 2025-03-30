@@ -35,7 +35,7 @@ exports.handler = async (event, context) => {
         console.log(`Texto extraído (primeros 100 chars): ${extractedText.substring(0, 100)}`);
 
         // 4. Preparar y llamar a Gemini (PROMPT RESTAURADO CON TOPIC, MAX 20)
-        const modelName = 'gemini-1.5-flash-latest'; // Mantenemos 1.5 flash
+        const modelName = 'gemini-2.0-flash-lite'; // Mantenemos 1.5 flash
         const AI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         // --- PROMPT RESTAURADO CON TOPIC Y MAX 20 ---
@@ -66,7 +66,7 @@ Genera únicamente el array JSON con las preguntas, opciones, respuesta y tema.`
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 // Ajustar tokens si es necesario, pero 2048 debería ser suficiente para 20 preguntas
-                generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
+                generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
                 safetySettings: [ /* ... tus safety settings ... */ ]
             }),
         });
