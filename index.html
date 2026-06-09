@@ -1,65 +1,18 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz IA a partir de Documentos</title>
-    <!-- Enlazamos el archivo CSS -->
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-<div class="container"> <!-- Contenedor principal -->
-
-    <h1>Generador de Quiz con IA</h1>
-
-    <p>Sube un documento de texto (.txt, pdf, docx) para generar un cuestionario basado en su contenido.</p>
-
-    <!-- Sección para subir el archivo -->
-    <div id="upload-section" class="card">
-        <label for="documentUpload">Selecciona un archivo (.txt):</label>
-        <div class="file-input-wrapper">
-          <!-- Limitamos solo a .txt ya que la función serverless actual solo lee texto plano -->
-         <!-- Dentro de <div id="upload-section"> -->
-        <input type="file" id="documentUpload" name="documentUpload" 
-            accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-          <button id="uploadButton">Analizar Documento</button>
-        </div>
-    </div>
-
-    <!-- Sección del Quiz (inicialmente oculta por JS) -->
-    <div id="quiz-section" class="card" style="display: none;"> <!-- Oculta inicialmente -->
-        <h2>Configuración del Quiz</h2>
-        <div class="quiz-config">
-            <label for="numQuestions">Número de preguntas:</label>
-            <!-- Valor por defecto 15, max se ajustará por JS -->
-            <input type="number" id="numQuestions" name="numQuestions" min="1" value="15">
-            <button id="startButton">Empezar Quiz</button>
-        </div>
-    </div>
-
-     <!-- Área donde se mostrarán las preguntas (inicialmente oculta por JS) -->
-    <div id="question-area" style="display: none;">
-        <!-- Las preguntas se insertarán aquí dinámicamente por JS -->
-    </div>
-
-    <!-- Sección donde se mostrarán los resultados finales (inicialmente oculta por JS) -->
-    <div id="result-section" class="card" style="display: none;"> <!-- Oculta inicialmente -->
-        <!-- Los resultados se insertarán aquí dinámicamente por JS -->
-    </div>
-
-
-    <!-- Mensaje de carga (inicialmente oculto por JS) -->
-    <div id="loading-message" class="card" style="display: none;"> <!-- Oculta inicialmente -->
-        <p>Analizando documento y generando preguntas con IA... por favor espera.</p>
-        <!-- Podríamos añadir un spinner CSS aquí -->
-    </div>
-
-
-</div> <!-- Fin del div.container -->
-
-<!-- Enlazamos el archivo JavaScript al final del body -->
-<script src="script.js"></script>
-
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23006c4f' d='M12 3L1 9l11 6l9-4.91V17h2V9L12 3z'/%3E%3Cpath fill='%23006c4f' opacity='.5' d='M21 12.09l-9 4.91l-9-4.91v4.82l9 4.91l9-4.91v-4.82z'/%3E%3C/svg%3E" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QuizAI - Generador de Cuestionarios con IA</title>
+    
+    <!-- Meta Tags SEO -->
+    <meta name="description" content="Genera cuestionarios interactivos personalizados con inteligencia artificial (Gemini) a partir de tus documentos PDF, DOCX y de texto." />
+    <meta name="keywords" content="quiz, generator, ia, inteligencia artificial, cuestionario, examen, estudio, pdf, word, txt" />
+    <meta name="author" content="QuizAI Team" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

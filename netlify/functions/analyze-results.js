@@ -1,67 +1,93 @@
-// netlify/functions/analyze-results.js (Restaurado para usar topic)
-
 exports.handler = async (event, context) => {
-    // 1. Verificar POST y obtener incorrectAnswers (sin cambios)
-    if (event.httpMethod !== 'POST') return { statusCode: 405, body: JSON.stringify({ error: 'Método no permitido.' }) };
+    // 1. Verify POST and retrieve incorrectAnswers
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: JSON.stringify({ error: 'Método no permitido.' }) };
+    }
+    
     let incorrectAnswers;
     try {
         const body = JSON.parse(event.body);
         incorrectAnswers = body.incorrectAnswers;
-        if (!Array.isArray(incorrectAnswers)) throw new Error('Falta o es inválido incorrectAnswers.');
+        if (!Array.isArray(incorrectAnswers)) throw new Error('Falta o es inválido el parámetro incorrectAnswers.');
         console.log(`Recibidas ${incorrectAnswers.length} respuestas incorrectas para analizar.`);
-        if (incorrectAnswers.length === 0) return { statusCode: 200, body: JSON.stringify({ feedback: "¡Felicidades! No tuviste errores." }) };
-    } catch (error) { return { statusCode: 400, body: JSON.stringify({ error: `Cuerpo inválido: ${error.message}` }) }; }
+        if (incorrectAnswers.length === 0) {
+            return { statusCode: 200, body: JSON.stringify({ feedback: "¡Felicidades! No tuviste errores." }) };
+        }
+    } catch (error) {
+        return { statusCode: 400, body: JSON.stringify({ error: `Cuerpo inválido: ${error.message}` }) };
+    }
 
-    // 2. Obtener API Key (sin cambios)
+    // 2. Retrieve Gemini API Key
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: 'Error config (key)' }) };
+    if (!apiKey) {
+        return { statusCode: 500, body: JSON.stringify({ error: 'Error de configuración: GEMINI_API_KEY no encontrada.' }) };
+    }
 
     try {
-        // 3. Preparar prompt para Gemini (USANDO TEMAS)
-        const modelName = 'gemini-2.0-flash';
+        // 3. Configure Gemini API with gemini-3.1-flash-lite
+        const modelName = 'gemini-3.1-flash-lite';
         const AI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-        // Resumen CON temas
+        // Create summary of errors
         const errorsSummary = incorrectAnswers.map(q => ({
             pregunta: q.question,
-            tema: q.topic || "No especificado", // Usar el tema (importante que generate-quiz lo devuelva)
+            tema: q.topic || "No especificado",
             respuesta_correcta: q.answer
         }));
 
-        // Prompt MENCIONANDO temas
-        const prompt = `Un usuario realizó un quiz basado en un documento y respondió incorrectamente a las siguientes preguntas. Cada pregunta puede tener asociado un tema principal. Analiza estos errores y genera un párrafo corto y amigable (2-4 frases) como feedback para el usuario, mencionando los 1-3 temas o conceptos generales en los que parece necesitar más repaso, basándote en los temas asociados a las preguntas falladas. Si no hay temas claros, da un consejo más general.
+        // Prompt mentioning topics
+        const prompt = `Un usuario realizó un cuestionario basado en un documento de estudio y respondió incorrectamente a las siguientes preguntas. Cada pregunta tiene asociado un tema principal. Analiza estos errores y genera un párrafo corto y amigable (2-4 frases) como retroalimentación para el usuario, mencionando los 1-3 temas o conceptos generales en los que parece necesitar más repaso y estudio, basándote en los temas asociados a las preguntas falladas. Si no hay temas claros, dale un consejo de estudio general amigable.
+        
+Evita dar las respuestas directas a las preguntas nuevamente, en cambio enfócate en el área temática general que debe estudiar.
 
 Errores del usuario (formato JSON):
 ${JSON.stringify(errorsSummary, null, 2)}
 
-Genera únicamente el párrafo de feedback.`;
+Genera únicamente el párrafo de retroalimentación amigable.`;
 
-        console.log("Enviando solicitud a Gemini para análisis de errores (con temas)...");
-        // 4. Llamar a Gemini (sin cambios)
+        console.log(`Enviando solicitud a Gemini API (${modelName}) para análisis de errores...`);
+        
         const response = await fetch(AI_API_ENDPOINT, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
                  contents: [{ parts: [{ text: prompt }] }],
-                 generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
-                 safetySettings: [ /* ... tus safety settings ... */ ]
+                 generationConfig: { temperature: 0.6, maxOutputTokens: 512 }
              }),
         });
-        console.log(`Respuesta de Gemini (feedback) recibida: ${response.status}`);
-        const aiResponse = await response.json();
-        if (!response.ok) { /* ... manejo error API ... */ throw new Error(`Error API Gemini (feedback): ${aiResponse?.error?.message || response.status}`); }
 
-        // 5. Extraer y devolver feedback (sin cambios)
-        let feedbackText = "No se pudo generar feedback específico, pero ¡sigue estudiando!";
+        console.log(`Respuesta de Gemini API (feedback) recibida con estado: ${response.status}`);
+        const aiResponse = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(`Error API Gemini (feedback): ${aiResponse?.error?.message || response.status}`);
+        }
+
+        // 5. Extract and return feedback
+        let feedbackText = "No se pudo generar retroalimentación específica en este momento, ¡pero sigue estudiando y esforzándote!";
         if (aiResponse.candidates && aiResponse.candidates[0]?.content?.parts?.[0]?.text) {
             feedbackText = aiResponse.candidates[0].content.parts[0].text.trim();
-            console.log("Feedback específico generado:", feedbackText);
-        } else { console.warn("La respuesta de Gemini para feedback no tenía la estructura esperada."); }
+            console.log("Feedback generado por la IA:", feedbackText);
+        } else {
+            console.warn("La respuesta de Gemini para feedback no tenía la estructura esperada.");
+        }
 
-        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback: feedbackText }) };
+        return { 
+            statusCode: 200, 
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTION'
+            }, 
+            body: JSON.stringify({ feedback: feedbackText }) 
+        };
 
     } catch (error) {
         console.error('Error en analyze-results:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: `Error al generar feedback: ${error.message}` }) };
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ error: `Error al generar retroalimentación: ${error.message}` }) 
+        };
     }
 };

@@ -1,0 +1,15 @@
+{
+  "name": "proyecto-quiz-ia",
+  "version": "1.0.0",
+  "description": "Generador de Quiz con IA desde documentos",
+  "main": "index.html",
+  "dependencies": {
+    "mammoth": "^1.7.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

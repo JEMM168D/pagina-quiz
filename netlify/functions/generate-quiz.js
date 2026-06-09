@@ -1,115 +1,156 @@
-// netlify/functions/generate-quiz.js (Restaurado con topic, max 20 preguntas)
-
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
 exports.handler = async (event, context) => {
-    // 1. Verificar POST y obtener datos (sin cambios)
-    if (event.httpMethod !== 'POST') return { statusCode: 405, body: JSON.stringify({ error: 'Método no permitido.' }) };
-    let base64DataUrl, fileType, fileName;
+    // 1. Verify POST and retrieve data
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: JSON.stringify({ error: 'Método no permitido.' }) };
+    }
+
+    let base64DataUrl, fileType, fileName, numQuestions, difficulty, quizMode;
     try {
         const body = JSON.parse(event.body);
-        base64DataUrl = body.fileDataUrl; fileType = body.fileType; fileName = body.fileName;
-        if (!base64DataUrl || !fileType || !fileName) throw new Error('Faltan datos');
-        console.log(`Archivo recibido: ${fileName}, Tipo: ${fileType}`);
-    } catch (error) { return { statusCode: 400, body: JSON.stringify({ error: `Cuerpo inválido: ${error.message}` }) }; }
+        base64DataUrl = body.fileDataUrl;
+        fileType = body.fileType;
+        fileName = body.fileName;
+        numQuestions = body.numQuestions || 10;
+        difficulty = body.difficulty || 'Medium';
+        quizMode = body.quizMode || 'Multiple Choice';
 
-    // 2. Obtener API Key (sin cambios)
+        if (!base64DataUrl || !fileType || !fileName) {
+            throw new Error('Faltan datos obligatorios (archivo, tipo o nombre).');
+        }
+        console.log(`Archivo recibido: ${fileName}, Tipo: ${fileType}, Preguntas: ${numQuestions}, Dificultad: ${difficulty}, Modo: ${quizMode}`);
+    } catch (error) {
+        return { statusCode: 400, body: JSON.stringify({ error: `Cuerpo inválido: ${error.message}` }) };
+    }
+
+    // 2. Retrieve Gemini API Key
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: 'Error config (key)' }) };
+    if (!apiKey) {
+        return { statusCode: 500, body: JSON.stringify({ error: 'Error de configuración: GEMINI_API_KEY no encontrada.' }) };
+    }
 
     let extractedText = '';
     try {
-        // 3. Extraer Texto (sin cambios)
+        // 3. Extract Text from File
         const base64String = base64DataUrl.split(',')[1];
         if (!base64String) throw new Error("Data URL inválido.");
         const fileBuffer = Buffer.from(base64String, 'base64');
         console.log(`Buffer creado, tamaño: ${fileBuffer.length} bytes`);
 
-        if (fileType === 'application/pdf') { extractedText = (await pdfParse(fileBuffer)).text; }
-        else if (fileType.includes('wordprocessingml') || fileName.endsWith('.docx')) { extractedText = (await mammoth.extractRawText({ buffer: fileBuffer })).value; }
-        else if (fileType === 'text/plain' || fileName.endsWith('.txt')) { extractedText = fileBuffer.toString('utf8'); }
-        else { throw new Error(`Tipo de archivo no soportado: ${fileType}`); }
+        if (fileType === 'application/pdf') {
+            extractedText = (await pdfParse(fileBuffer)).text;
+        } else if (fileType.includes('wordprocessingml') || fileName.endsWith('.docx')) {
+            extractedText = (await mammoth.extractRawText({ buffer: fileBuffer })).value;
+        } else if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+            extractedText = fileBuffer.toString('utf8');
+        } else {
+            throw new Error(`Tipo de archivo no soportado: ${fileType}`);
+        }
 
-        if (!extractedText || extractedText.trim().length === 0) return { statusCode: 400, body: JSON.stringify({ error: 'No se pudo extraer contenido textual o estaba vacío.' }) };
-        console.log(`Texto extraído (primeros 100 chars): ${extractedText.substring(0, 100)}`);
+        if (!extractedText || extractedText.trim().length === 0) {
+            return { statusCode: 400, body: JSON.stringify({ error: 'No se pudo extraer contenido textual o estaba vacío.' }) };
+        }
+        console.log(`Texto extraído con éxito. Longitud del texto: ${extractedText.length} caracteres.`);
 
-        // 4. Preparar y llamar a Gemini (PROMPT RESTAURADO CON TOPIC, MAX 20)
-        const modelName = 'gemini-1.5-flash-latest'; // Mantenemos 1.5 flash
+        // 4. Configure Gemini API with gemini-3.1-flash-lite
+        const modelName = 'gemini-3.1-flash-lite';
         const AI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-        // --- PROMPT RESTAURADO CON TOPIC Y MAX 20 ---
-        const maxQuestionsToGenerate = 20; // <--- Límite reducido
-        const prompt = `A partir del siguiente texto, realiza estas dos tareas:
-1. Identifica los 3-5 temas principales tratados en el texto.
-2. Genera OBLIGATORIAMENTE un array JSON válido que contenga hasta ${maxQuestionsToGenerate} objetos de preguntas de opción múltiple (4 opciones distintas cada una) basadas en el contenido. Si el texto es corto, genera menos preguntas pero asegúrate de que sean de buena calidad.
+        // Build the customization prompt instructions
+        let formatInstructions = '';
+        if (quizMode === 'True / False') {
+            formatInstructions = `Cada pregunta debe ser del formato Verdadero / Falso. El array "options" debe contener obligatoriamente dos elementos: ["Verdadero", "Falso"]. El campo "answer" debe ser exactamente "Verdadero" o "Falso".`;
+        } else {
+            formatInstructions = `Cada pregunta debe tener formato de opción múltiple. El array "options" debe contener exactamente 4 opciones de respuesta distintas. El campo "answer" debe ser el texto exacto de la opción correcta (debe coincidir con una de las 4 opciones).`;
+        }
+
+        const difficultyLabel = difficulty === 'Easy' ? 'Fácil (conceptos básicos y directos)' : difficulty === 'Hard' ? 'Difícil (análisis crítico, detalles y razonamiento profundo)' : 'Medio (comprensión estándar)';
+
+        const prompt = `A partir del siguiente texto, realiza estas tareas:
+1. Identifica los temas principales tratados en el texto.
+2. Genera OBLIGATORIAMENTE un array JSON válido que contenga exactamente ${numQuestions} objetos de preguntas basadas en el contenido. Si el texto es muy corto, puedes generar menos preguntas (mínimo 3) pero asegúrate de que sean de buena calidad.
+
+El nivel de dificultad general de las preguntas debe ser: ${difficultyLabel}.
+${formatInstructions}
+
 Cada objeto en el array JSON debe tener estrictamente las siguientes claves y tipos:
  - "question" (string): El texto de la pregunta.
- - "options" (array de 4 strings): Las opciones de respuesta.
- - "answer" (string): El texto exacto de la opción correcta (debe ser una de las 4 opciones).
- - "topic" (string): Una etiqueta breve (1-3 palabras) que represente el tema principal de esa pregunta, basado en los temas identificados en el paso 1 o en el contenido específico de la pregunta. Intenta usar los mismos nombres de tema de forma consistente.
+ - "options" (array de strings): Las opciones de respuesta.
+ - "answer" (string): El texto exacto de la opción correcta.
+ - "topic" (string): Una etiqueta breve (1-3 palabras) que represente el tema principal de esa pregunta.
+ - "explanation" (string): Una breve explicación (1-2 frases) de por qué esa respuesta es correcta y por qué las otras son incorrectas, basándote en el texto.
 
-IMPORTANTE: La respuesta final debe ser únicamente el array JSON puro. No incluyas los temas identificados fuera del JSON, ni explicaciones, texto introductorio, comentarios, ni comillas de bloque de código (\`\`\`) antes o después del array JSON. El JSON debe empezar con '[' y terminar con ']'.
+IMPORTANTE: La respuesta final debe ser únicamente el array JSON puro. No incluyas explicaciones de texto antes o después del JSON, ni comentarios, ni comillas de bloque de código (\`\`\`json o \`\`\`). El JSON debe empezar estrictamente con '[' y terminar con ']'.
 
 Texto:
 ---
 ${extractedText}
 ---
 
-Genera únicamente el array JSON con las preguntas, opciones, respuesta y tema.`;
-        // --- FIN PROMPT ---
+Genera únicamente el array JSON con las preguntas y explicaciones.`;
 
-        console.log(`Enviando solicitud a Gemini API (${modelName}) para generar hasta ${maxQuestionsToGenerate} preguntas (con temas)...`);
+        console.log(`Enviando solicitud a Gemini API (${modelName}) para generar ${numQuestions} preguntas...`);
+        
         const response = await fetch(AI_API_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
-                // Ajustar tokens si es necesario, pero 2048 debería ser suficiente para 20 preguntas
-                generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
-                safetySettings: [ /* ... tus safety settings ... */ ]
+                generationConfig: { 
+                    temperature: 0.5, 
+                    maxOutputTokens: 4096, 
+                    responseMimeType: "application/json" 
+                }
             }),
         });
 
         console.log(`Respuesta de Gemini API recibida con estado: ${response.status}`);
         const aiResponse = await response.json();
 
-        if (!response.ok) { /* ... manejo de error API ... */ throw new Error(`Error API Gemini: ${aiResponse?.error?.message || response.status}`); }
+        if (!response.ok) {
+            throw new Error(`Error API Gemini: ${aiResponse?.error?.message || response.status}`);
+        }
 
-        // 5. Procesar Respuesta (Extracción y Validación con 'topic')
-        console.log("Respuesta JSON completa de Gemini recibida.");
+        // 5. Process & Parse Response
         let generatedQuestions = [];
         if (aiResponse.candidates && aiResponse.candidates[0]?.content?.parts?.[0]?.text) {
             try {
                 const jsonString = aiResponse.candidates[0].content.parts[0].text;
                 const cleanedJsonString = jsonString.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
                 generatedQuestions = JSON.parse(cleanedJsonString);
-                // Validación adicional con 'topic'
-                if (generatedQuestions.length > 0) {
-                    const firstQ = generatedQuestions[0];
-                    if (!firstQ.question || !Array.isArray(firstQ.options) || !firstQ.answer || !firstQ.topic) { // <-- Verificando topic
-                         console.warn("Advertencia: Preguntas recibidas no tienen la estructura completa esperada (question, options, answer, topic).", firstQ);
-                         // Decidimos continuar, pero el feedback por tema puede ser menos preciso.
-                    }
-                }
-            } catch (parseError) { /* ... manejo error parseo ... */ throw new Error("Gemini no devolvió un JSON válido."); }
-        } else { /* ... manejo estructura inesperada ... */ throw new Error("Respuesta Gemini OK pero estructura inesperada."); }
+            } catch (parseError) {
+                console.error("Error al parsear el JSON de la IA:", parseError);
+                throw new Error("Gemini no devolvió un JSON estructurado válido.");
+            }
+        } else {
+            throw new Error("Respuesta Gemini OK pero estructura inesperada.");
+        }
 
-        if (!Array.isArray(generatedQuestions)) { throw new Error('La IA generó una respuesta no válida (no es array).'); }
-        if (generatedQuestions.length === 0) { console.warn("La IA no generó ninguna pregunta."); }
+        if (!Array.isArray(generatedQuestions)) {
+            throw new Error('La IA generó una respuesta no válida (no es un array).');
+        }
 
+        console.log(`Se generaron y procesaron ${generatedQuestions.length} preguntas.`);
 
-        console.log(`Se generaron y parsearon ${generatedQuestions.length} preguntas (con temas).`);
-
-        // 6. Devolver preguntas
+        // 6. Return response
         return {
             statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTION'
+            },
             body: JSON.stringify({ questions: generatedQuestions }),
         };
 
     } catch (error) {
         console.error('Error en generate-quiz:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: `Error al procesar/generar: ${error.message}` }) };
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ error: `Error al procesar/generar el quiz: ${error.message}` }) 
+        };
     }
 };
